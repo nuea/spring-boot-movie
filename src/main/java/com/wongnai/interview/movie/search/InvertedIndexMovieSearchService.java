@@ -1,6 +1,7 @@
 package com.wongnai.interview.movie.search;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
@@ -10,11 +11,15 @@ import com.wongnai.interview.movie.Movie;
 import com.wongnai.interview.movie.MovieRepository;
 import com.wongnai.interview.movie.MovieSearchService;
 
+import javax.persistence.criteria.CriteriaBuilder;
+
 @Component("invertedIndexMovieSearchService")
 @DependsOn("movieDatabaseInitializer")
 public class InvertedIndexMovieSearchService implements MovieSearchService {
 	@Autowired
 	private MovieRepository movieRepository;
+
+	private HashMap<String, List<Long>> movieTable = new HashMap<String, List<Long>>();
 
 	@Override
 	public List<Movie> search(String queryText) {
@@ -35,6 +40,39 @@ public class InvertedIndexMovieSearchService implements MovieSearchService {
 		// you have to return can be union or intersection of those 2 sets of ids.
 		// By the way, in this assignment, you must use intersection so that it left for just movie id 5.
 
-		return null;
+
+		List<Long> movieIds = new LinkedList<Long>();
+		List<Movie> target = new ArrayList<Movie>();
+		if( movieTable.isEmpty()) {
+			for (Movie movie : movieRepository.findAll()) {
+				for (String word : movie.getName().split(" ")) {
+					if (movieTable.containsKey(word.toLowerCase())) {
+						movieTable.get(word.toLowerCase()).add(movie.getId());
+					} else {
+						List<Long> number = new LinkedList<>();
+						number.add(movie.getId());
+						movieTable.put(word.toLowerCase(), number);
+					}
+				}
+			}
+		}
+
+		for (String word : queryText.toLowerCase().split(" ")) {
+			if(movieTable.containsKey(word)) {
+				if(movieIds.isEmpty()){
+					movieIds.addAll(movieTable.get(word));
+				} else {
+					movieIds = movieIds.stream()
+							.filter(id -> movieTable.get(word).contains(id))
+							.collect(Collectors.toList());
+				}
+			} else {
+				return new LinkedList<Movie>();
+			}
+		}
+
+		movieRepository.findAllById(movieIds).forEach(target::add);
+
+		return target;
 	}
 }
